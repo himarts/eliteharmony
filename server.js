@@ -42,7 +42,7 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
-app.use("/api/likes", likesDislikesRoutes);
+app.use("/api/profile", likesDislikesRoutes);
 app.use("/api/users", searchRoutes);
 app.use("/api/users", chatRoute)
 

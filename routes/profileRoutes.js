@@ -8,7 +8,7 @@ import upload from "../middleware/uploadMiddlewares.js"; // Import the upload mi
 const router = express.Router();
 
 router.get("/me", protect, getProfile); // Get own profile
-router.put("/update/:userId", protect, validate(profileUpdateValidation), updateProfile); // Update profile
+router.put("/update", protect, validate(profileUpdateValidation), updateProfile); // Update profile
 router.get("/:userId", protect, viewUserProfile); // View other profiles
 router.put("/profile-picture", protect, upload.single("profilePicture"), updateProfilePicture);
 

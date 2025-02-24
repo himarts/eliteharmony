@@ -5,10 +5,10 @@ import { authenticateUser,protect} from '../middleware/authMiddleware.js'; // Mi
 const router = express.Router();
 
 // Route to like a user
-router.post('/like/:likedUserId', protect, likeUser);
+router.post('/liked/:likedUserId', protect, likeUser);
 
 // Route to dislike a user
-router.post('/dislike/:dislikedUserId', protect, dislikeUser);
+router.post('/disliked/:dislikedUserId', protect, dislikeUser);
 
 // Route to get all matches
 // router.get('/matches', authenticateUser, getMatchedUsers);

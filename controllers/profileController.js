@@ -23,7 +23,10 @@ export const getProfile = async (req, res) => {
 // ✅ Update User Profile
 export const updateProfile = async (req, res) => {
   try {
-    const {profileData, userId} = req.body;
+    const token = req.headers.authorization.split(' ')[1]; // Assuming the token is sent in the Authorization header
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    const {profileData} = req.body;
     const userExist = await User.findById(userId);
     if (!userExist) return res.status(404).json({ message: "User not found" });
 console.log(userExist);

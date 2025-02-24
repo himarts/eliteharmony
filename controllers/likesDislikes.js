@@ -4,6 +4,7 @@ import { matchUsers } from './matchControllers.js';
 export const likeUser = async (req, res) => {
   try {
     const currentUserId = req.user.userId;
+    console.log(currentUserId)
     const { likedUserId } = req.params;
 
     // Ensure the user is not liking themselves
