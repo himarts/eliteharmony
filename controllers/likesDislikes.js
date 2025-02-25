@@ -1,51 +1,56 @@
 import User from '../models/user.js';
 import { matchUsers } from './matchControllers.js';
+import { sendLikeNotification } from './notificationController.js'; // Import the notification controller
 // Like a User
 export const likeUser = async (req, res) => {
   try {
-    const currentUserId = req.user.userId;
-    console.log(currentUserId)
-    const { likedUserId } = req.params;
+    const currentUserId = req.user?.userId    //✅ Ensure correct user ID
+    const { profileId } = req.params;
 
-    // Ensure the user is not liking themselves
-    if (currentUserId === likedUserId) {
+    if (currentUserId === profileId) {
       return res.status(400).json({ error: "You cannot like yourself." });
     }
 
     const currentUser = await User.findById(currentUserId);
-    const likedUser = await User.findById(likedUserId);
+    const likedUser = await User.findById(profileId);
 
     if (!likedUser) {
       return res.status(404).json({ error: "Liked user not found." });
     }
 
-    // Check if the liked user is in dislikedUsers
-    const dislikedIndex = currentUser.dislikedUsers.indexOf(likedUserId);
-    if (dislikedIndex !== -1) {
-      // Remove from dislikedUsers
-      currentUser.dislikedUsers.splice(dislikedIndex, 1);
+    // ✅ Ensure `likedUsers` and `dislikedUsers` exist
+
+    currentUser.likedUsers = currentUser.likedUsers || [];
+    currentUser.dislikedUsers = currentUser.dislikedUsers || [];
+    likedUser.likedUsers = likedUser.likedUsers || [];
+    likedUser.matches = likedUser.matches || [];
+    currentUser.matches = currentUser.matches || [];
+
+    // Remove from dislikedUsers if it exists
+    currentUser.dislikedUsers = currentUser.dislikedUsers.filter(id => id.toString() !== profileId);
+
+    // Add to likedUsers if not already liked
+    if (!currentUser.likedUsers.includes(profileId)) {
+      currentUser.likedUsers.push(profileId);
+      await sendLikeNotification(currentUserId, profileId); // Send notification
     }
 
-    // Ensure the user is not already in likedUsers
-    if (!currentUser.likedUsers.includes(likedUserId)) {
-      currentUser.likedUsers.push(likedUserId);
-    }
+    // Mutual like → Match
 
-    await currentUser.save();
-
-    // Check if the liked user has already liked the current user (mutual like)
     if (likedUser.likedUsers.includes(currentUserId)) {
-      // Add to both users' matches
-      if (!currentUser.matches.includes(likedUserId)) {
-        currentUser.matches.push(likedUserId);
+      if (!currentUser.matches.includes(profileId)) {
+        currentUser.matches.push(profileId);
         likedUser.matches.push(currentUserId);
-        await currentUser.save();
-        await likedUser.save();
-        return res.status(200).json({ message: "It's a match!" });
       }
     }
 
-    res.status(200).json({ message: "User liked successfully." });
+    // Save both users efficiently
+
+    await Promise.all([currentUser.save(), likedUser.save()]);
+
+    res.status(200).json({
+      message: likedUser.likedUsers.includes(currentUserId) ? "It's a match!" : "User liked successfully."
+    });
 
   } catch (error) {
     console.error(error);
@@ -53,35 +58,67 @@ export const likeUser = async (req, res) => {
   }
 };
 
+// Get Liked Users
+export const getLikedUsers = async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    const currentUser = await User.findById(currentUserId).populate('likedUsers', '-password -verificationCode');
+
+    if (!currentUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
+    res.status(200).json(currentUser.likedUsers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong." });
+  }
+};
+
+// Get Disliked Users
+export const getDislikedUsers = async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    const currentUser = await User.findById(currentUserId).populate('dislikedUsers', '-password -verificationCode');
+
+    if (!currentUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.status(200).json(currentUser.dislikedUsers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong." });
+  }
+};
 
 // Dislike a User
 export const dislikeUser = async (req, res) => {
   try {
     const currentUserId = req.user.userId;
-    const { dislikedUserId } = req.params;
+    const { profileId } = req.params;
 
     // Ensure the user is not disliking themselves
-    if (currentUserId === dislikedUserId) {
+    if (currentUserId === profileId) {
       return res.status(400).json({ error: "You cannot dislike yourself." });
     }
 
     const currentUser = await User.findById(currentUserId);
-    const dislikedUser = await User.findById(dislikedUserId);
+    const dislikedUser = await User.findById(profileId);
 
     if (!dislikedUser) {
       return res.status(404).json({ error: "Disliked user not found." });
     }
 
     // Check if the disliked user is in likedUsers
-    const likedIndex = currentUser.likedUsers.indexOf(dislikedUserId);
+    const likedIndex = currentUser.likedUsers.indexOf(profileId);
     if (likedIndex !== -1) {
       // Remove from likedUsers
       currentUser.likedUsers.splice(likedIndex, 1);
     }
 
     // Ensure the user is not already in dislikedUsers
-    if (!currentUser.dislikedUsers.includes(dislikedUserId)) {
-      currentUser.dislikedUsers.push(dislikedUserId);
+    if (!currentUser.dislikedUsers.includes(profileId)) {
+      currentUser.dislikedUsers.push(profileId);
     }
 
     await currentUser.save();
@@ -93,7 +130,6 @@ export const dislikeUser = async (req, res) => {
     res.status(500).json({ error: "Something went wrong." });
   }
 };
-
 
 const calculateDistance = (location1, location2) => {
     const [lat1, lon1] = location1.split(",").map(Number);

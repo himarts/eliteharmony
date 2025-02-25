@@ -16,7 +16,7 @@ export const getProfile = async (req, res) => {
 
     res.json(user);
   } catch (error) {
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error12" });
   }
 };
 
@@ -29,7 +29,6 @@ export const updateProfile = async (req, res) => {
     const {profileData} = req.body;
     const userExist = await User.findById(userId);
     if (!userExist) return res.status(404).json({ message: "User not found" });
-console.log(userExist);
 
     try {
       const updatedProfile = await User.findByIdAndUpdate(userId, profileData, { new: true });
@@ -40,7 +39,7 @@ console.log(userExist);
       res.status(500).json({ message: "Error updating profile" });
     }
   } catch (error) {
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error13" });
   }
 };
 
@@ -52,7 +51,7 @@ export const viewUserProfile = async (req, res) => {
 
     res.json(user);
   } catch (error) {
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error14" });
   }
 };
 
@@ -77,6 +76,22 @@ export const updateProfilePicture = async (req, res) => {
   
       res.json({ message: "Profile picture updated", profilePicture: user.profilePicture });
     } catch (error) {
+      res.status(500).json({ error: "Server error15" });
+    }
+  };
+  
+  //get online users
+
+  export const getOnlineUsers = async (req, res) => {
+    try {
+      // ✅ Only allow authenticated users
+      const users = await User.find({ onlineStatus: "online" }).select("-password");
+      
+      if (users.length === 0) return res.status(400).json({ error: "No online users found" });
+  
+      return res.status(200).json(users);
+    } catch (error) {
+      console.error(error);
       res.status(500).json({ error: "Server error" });
     }
   };

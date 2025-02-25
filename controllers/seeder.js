@@ -1,43 +1,48 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import seeder from 'mongoose-seed';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { faker } from '@faker-js/faker';
+import User from '../models/User.js'; // Adjust path based on your project
+import connectDB from '../config/db.js';
 
-// Load environment variables
 dotenv.config();
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/mydatabase';
 
-// Generate fake users
-const users = Array.from({ length: 10 }).map(() => ({
-  name: faker.person.fullName(),
-  email: faker.internet.email(),
-  phone: faker.phone.number(),
-  password: bcrypt.hashSync('password', 10), // Hashing the password
-  image: faker.image.avatar(), // Fake image URL
-}));
+// Generate Fake Users
+const generateUsers = async () => {
+  try {
+    await User.deleteMany(); // 
+    const pass = "password"
 
-// User schema for seeding
-const userSchema = {
-  model: 'User',
-  documents: users,
+        const hashedPassword = await bcrypt.hash(pass, 10);
+    // Clear existing users
+    const users = Array.from({ length: 20 }).map(() => ({
+      name: faker.person.fullName(),
+      email: faker.internet.email(),
+      phone: faker.phone.number(),
+      isVerified:true,
+      onlineStatus:"online",
+      verificationStatus:"verified",
+      password:  hashedPassword,// Hashed password
+      image: faker.image.avatar(), // Fake profile image
+    }));
+
+    await User.insertMany(users);
+    console.log('Database Seeded Successfully!');
+  } catch (error) {
+    if (error.name === 'MongoServerError' && error.code === 13) {
+      console.error('Permission Error: Ensure your MongoDB user has the necessary permissions.');
+    } else {
+      console.error('Seeding Failed:', error);
+    }
+  } finally {
+    mongoose.connection.close();
+  }
 };
 
-// Seed database
+// Run Seeder
 const seedDatabase = async () => {
-  try {
-    seeder.connect(MONGO_URI, () => {
-      seeder.loadModels(['../models/User.js']); // Adjust path if necessary
-      seeder.clearModels(['User'], () => {
-        seeder.populateModels([userSchema], () => {
-          console.log('Database Seeded Successfully!');
-          seeder.disconnect();
-        });
-      });
-    });
-  } catch (error) {
-    console.error('Seeding failed:', error);
-  }
+  await connectDB();
+  await generateUsers();
 };
 
 seedDatabase();

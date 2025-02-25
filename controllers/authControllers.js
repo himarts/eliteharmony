@@ -314,3 +314,20 @@ export const deleteAllUsers = async (req, res) => {
     res.status(500).json({ message: "Error deleting users", error });
   }
 };
+
+export const logout = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(400).json({ error: "User not found" });
+
+    // ✅ Mark user as offline
+    user.onlineStatus = "offline";
+    await user.save();
+
+    res.status(200).json({ message: "User logged out successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+

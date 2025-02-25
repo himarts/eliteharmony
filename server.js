@@ -12,6 +12,9 @@ import searchRoutes from './routes/searchRoutes.js';
 import chatRoute from './routes/chatRoutes.js';
 import User from './models/user.js';
 import { protect } from './middleware/authMiddleware.js';
+import notificationRoute from './routes/notificationRoutes.js';
+
+
 // Load environment variables
 dotenv.config();
 
@@ -21,6 +24,8 @@ const app = express();
 // const io = socketIo(server);
 // Connect to MongoDB
 connectDB();
+// seedDatabase();
+
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -42,10 +47,10 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
-app.use("/api/profile", likesDislikesRoutes);
+app.use("/api/profiles", likesDislikesRoutes);
 app.use("/api/users", searchRoutes);
 app.use("/api/users", chatRoute)
-
+app.use('/api/notification', notificationRoute)
 
 // Store connected users
 const onlineUsers = new Map();

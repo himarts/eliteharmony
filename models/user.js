@@ -16,7 +16,10 @@ const userSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     verificationCode: { type: String },
     verificationStatus: { type: String, enum: ['unverified', 'verified'], default: 'unverified' },
-    
+    onlineStatus:{type:String,enum:['online','offline'],default:'offline'},
+    // Notifications
+    emailNotifications: { type: Boolean, default: true },
+    notifications: { type: Boolean, default: true },
     // Profile Information
     gender: { type: String, enum: ["Male", "Female", "Non-binary", "Other"] },
     dateOfBirth: { type: Date },
