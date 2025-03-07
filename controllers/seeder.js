@@ -23,7 +23,7 @@ const generateUsers = async () => {
       onlineStatus:"online",
       verificationStatus:"verified",
       password:  hashedPassword,// Hashed password
-      image: faker.image.avatar(), // Fake profile image
+      profilePicture: faker.image.avatar(), // Fake profile image
     }));
 
     await User.insertMany(users);
