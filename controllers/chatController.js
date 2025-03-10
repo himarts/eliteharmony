@@ -1,17 +1,16 @@
 import Chat from '../models/chat.js';
 import User from '../models/user.js';
 import { maskPhoneNumber } from '../utils/maskPhone.js';
-// Send a message from the current user to another user
-
-
-// Function to mask phone numbers
-// const maskPhoneNumber = (message) => {
-//   return message.replace(/\b\d{10,}\b/g, "********"); // Replace 10+ digit numbers with asterisks
-// };
+import { getUsers } from '../services/socket.js';
+import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 // Send message and notify in real-time
 export const sendMessage = async (req, res) => {
   try {
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
     const { receiverId, message } = req.body;
 
     if (!message || !receiverId) {
@@ -29,20 +28,32 @@ export const sendMessage = async (req, res) => {
 
     // Save message in the database
     const newMessage = new Chat({
-      sender: req.user.userId,
-      receiver: receiverId,
+      sender: new mongoose.Types.ObjectId(userId),
+      receiver: new mongoose.Types.ObjectId(receiverId),
       message: maskedMessage,
+      isRead: false, // Mark as unread initially
     });
 
-    const savedMessage = await newMessage.save();
+    await newMessage.save();
 
-    // Emit message via Socket.io
-    req.io.to(receiverId).emit("receive-message", {
-      sender: req.user.userId,
-      message: maskedMessage,
-    });
+    // 🔥 Emit message via Socket.io
+    const users = getUsers(); // Get the map of connected users
+    const receiverSocketId = users.get(receiverId); // Get receiver's socket ID
 
-    res.status(200).json(savedMessage);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("receiveMessage", {
+        senderId: userId,
+        message: maskedMessage,
+      });
+    } else {
+      // 🚀 If the user is offline, increment unread count
+      await User.findByIdAndUpdate(receiverId, {
+        $inc: { unreadMessages: 1 },
+      });
+      console.log(`📩 User ${receiverId} is offline. Unread messages count updated.`);
+    }
+
+    res.status(200).json(newMessage);
   } catch (error) {
     console.error("Error sending message:", error);
     res.status(500).json({ error: "Something went wrong while sending the message" });
@@ -52,9 +63,10 @@ export const sendMessage = async (req, res) => {
 // Fetch chat history
 export const getChatHistory = async (req, res) => {
   try {
-    const { userId } = req.params; // The ID of the user the chat is with
-    const currentUserId = req.user.userId;
-
+    const {userId } = req.params; // The ID of the user the chat is with
+    const token = req.headers.authorization.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.userId;
     const chatHistory = await Chat.find({
       $or: [
         { sender: currentUserId, receiver: userId },
@@ -95,23 +107,46 @@ export const markAsRead = async (req, res) => {
   }
 };
 
+export const resetUnreadMessages = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await User.findByIdAndUpdate(userId, { unreadMessages: 0 });
+    res.status(200).json({ message: "Unread messages reset" });
+  } catch(error) {
+     console.error(error);
+      res.status(500).json({ error: 'Unable to fetch unread messages count' });
+    
+  }
+}
+
+export  const getUnreadMessageCount = async (req,res ) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json({ unreadMessages: user.unreadMessages || 0 });
+  } catch (error) {
+    console.error("Error fetching unread messages:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+}
 
 // Fetch message history between two users
-// export const getMessageHistory = async (req, res) => {
-//   try {
-//     const { receiverId } = req.params;
+export const getMessageHistory = async (req, res) => {
+  try {
+    const { receiverId } = req.params;
 
-//     const messages = await Chat.find({
-//       $or: [
-//         { sender: req.user.userId, receiver: receiverId },
-//         { sender: receiverId, receiver: req.user.userId },
-//       ],
-//     }).sort({ timestamp: 1 }); // Sort messages by timestamp ascending
+    const messages = await Chat.find({
+      $or: [
+        { sender: req.user.userId, receiver: receiverId },
+        { sender: receiverId, receiver: req.user.userId },
+      ],
+    }).sort({ timestamp: 1 }); // Sort messages by timestamp ascending
 
-//     res.status(200).json(messages);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: 'Unable to fetch message history' });
-//   }
-// };
-
+    res.status(200).json(messages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Unable to fetch message history' });
+  }
+};

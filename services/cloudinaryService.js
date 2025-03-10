@@ -1,14 +1,18 @@
-import cloudinary from "cloudinary";
+import { v2 as cloudinary } from 'cloudinary';
+import dotenv from 'dotenv';
+dotenv.config();
 
-// Function to upload an image to Cloudinary
-export const uploadImage = async (file) => {
-  try {
-    const result = await cloudinary.v2.uploader.upload(file, {
-      folder: "dating-app/profile-pictures",
-      transformation: [{ width: 500, height: 500, crop: "limit" }],
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+export const uploadImage = (filePath, options = {}) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload(filePath, options, (error, result) => {
+      if (error) return reject(error);
+      resolve(result);
     });
-    return result;
-  } catch (error) {
-    throw new Error("Error uploading image to Cloudinary");
-  }
+  });
 };

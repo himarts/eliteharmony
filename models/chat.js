@@ -7,6 +7,7 @@ const chatSchema = new mongoose.Schema(
     message: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
     read: { type: Boolean, default: false },
+    unreadMessages: { type: Number, default: 0 },
      // Indicates if the message has been read
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt fields

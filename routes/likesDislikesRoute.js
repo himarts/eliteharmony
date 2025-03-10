@@ -1,6 +1,7 @@
 import express from 'express';
 import { likeUser, dislikeUser, getDislikedUsers, getLikedUsers } from '../controllers/likesDislikes.js';
-import { protect} from '../middleware/authMiddleware.js'; // Middleware to authenticate users
+import { protect } from '../middleware/authMiddleware.js'; // Middleware to authenticate users
+import { sendLikeNotification } from '../controllers/notificationController.js';
 
 const router = express.Router();
 
@@ -14,10 +15,29 @@ router.post('/disliked/:profileId', protect, dislikeUser);
 router.get('/liked', protect, getLikedUsers);
 
 // Route to get all disliked
-
 router.get('/disliked', protect, getDislikedUsers);
+
+// Route to send like notification
+router.post('/like', protect, async (req, res) => {
+  const { likerId, likedId } = req.body;
+
+  console.log("Route Handler - likerId:", likerId); // Debugging statement
+  console.log("Route Handler - likedId:", likedId); // Debugging statement
+
+  if (!likerId || !likedId) {
+    return res.status(400).json({ success: false, message: "likerId and likedId are required." });
+  }
+
+  const result = await sendLikeNotification(req, likerId, likedId);
+
+  if (result.success) {
+    res.status(200).json(result);
+  } else {
+    res.status(400).json(result);
+  }
+});
+
 // Route to get all matches
 // router.get('/matches', authenticateUser, getMatchedUsers);
-
 
 export default router;

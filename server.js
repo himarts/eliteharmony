@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import http from "http";
-import { Server } from "socket.io";
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import connectDB from './config/db.js'; // Import MongoDB connection function
@@ -13,89 +12,40 @@ import chatRoute from './routes/chatRoutes.js';
 import User from './models/user.js';
 import { protect } from './middleware/authMiddleware.js';
 import notificationRoute from './routes/notificationRoutes.js';
-
+import Chat from './models/chat.js'; // Import Chat model
+import { initializeSocket, getSocket } from './services/socket.js'; // Import the socket initialization function
+import { maskPhoneNumber } from './utils/maskPhone.js'; // Import the maskPhoneNumber utility function
+import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
-// const server = http.createServer(app);
-// const io = socketIo(server);
 // Connect to MongoDB
 connectDB();
-// seedDatabase();
-
-
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
-});
+
+// Initialize Socket.IO
+initializeSocket(server);
 
 
-// Middleware to attach `io` to `req`
+// Middleware to attach socket to requests
 app.use((req, res, next) => {
-  req.io = io;
+  req.io = getSocket(); // Attach socket instance to req object
   next();
 });
 
 app.use(cors());
 app.use(express.json());
-app.use(bodyParser.urlencoded({ extended: true }))
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/profiles", likesDislikesRoutes);
 app.use("/api/users", searchRoutes);
-app.use("/api/users", chatRoute)
-app.use('/api/notification', notificationRoute)
-
-// Store connected users
-const onlineUsers = new Map();
-
-io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
-
-  // Store user when they join
-  socket.on("user-online", (userId) => {
-    onlineUsers.set(userId, socket.id);
-  });
-
-  // Handle sending messages
-  socket.on("send-message", async ({ senderId, receiverId, message }) => {
-    const maskedMessage = maskPhoneNumber(message); // Mask phone numbers
-
-    // Save message to database
-    const newMessage = new Chat({
-      sender: senderId,
-      receiver: receiverId,
-      message: maskedMessage,
-    });
-
-    await newMessage.save();
-
-    // Send message to the receiver in real-time if they are online
-    const receiverSocketId = onlineUsers.get(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("receive-message", {
-        senderId,
-        message: maskedMessage,
-      });
-    }
-  });
-
-  // Handle user disconnection
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    for (let [key, value] of onlineUsers.entries()) {
-      if (value === socket.id) {
-        onlineUsers.delete(key);
-      }
-    }
-  });
-});
+app.use("/api/chats", chatRoute);
+app.use('/api/notification', notificationRoute);
 
 
 
@@ -105,20 +55,21 @@ app.get('/', (req, res) => {
 
 app.get("/check-profile",
   protect,
-    async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    console.log(user)
-    if (!user) return res.status(404).json({ error: "User not found" });
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      console.log(user);
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-    res.json({ isProfileComplete: user.isProfileComplete });
-  } catch (error) {
-    res.status(500).json({ error: "Server error" });
+      res.json({ isProfileComplete: user.isProfileComplete });
+    } catch (error) {
+      res.status(500).json({ error: "Server error" });
+    }
   }
-});
+);
 
 // Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => { // Change app.listen to server.listen
   console.log(`Server running on port ${PORT}`);
 });
