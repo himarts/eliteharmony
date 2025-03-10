@@ -32,6 +32,7 @@ export const sendMessage = async (req, res) => {
       receiver: new mongoose.Types.ObjectId(receiverId),
       message: maskedMessage,
       isRead: false, // Mark as unread initially
+      
     });
 
     await newMessage.save();
@@ -41,7 +42,7 @@ export const sendMessage = async (req, res) => {
     const receiverSocketId = users.get(receiverId); // Get receiver's socket ID
 
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("receiveMessage", {
+      req.io.to(receiverSocketId).emit("receiveMessage", {
         senderId: userId,
         message: maskedMessage,
       });
@@ -110,7 +111,8 @@ export const markAsRead = async (req, res) => {
 export const resetUnreadMessages = async (req, res) => {
   try {
     const { userId } = req.params;
-    await User.findByIdAndUpdate(userId, { unreadMessages: 0 });
+    const use = await User.findByIdAndUpdate(userId, { unreadMessages: 0 });
+    console.log(use)
     res.status(200).json({ message: "Unread messages reset" });
   } catch(error) {
      console.error(error);
@@ -119,18 +121,24 @@ export const resetUnreadMessages = async (req, res) => {
   }
 }
 
-export  const getUnreadMessageCount = async (req,res ) => {
+export const getUnreadMessageCount = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    res.json({ unreadMessages: user.unreadMessages || 0 });
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // Count unread messages where the logged-in user is the receiver
+    const unreadMessages = await Chat.countDocuments({
+      receiver: userId,
+    });
+console.log(unreadMessages)
+    res.json({ unreadMessages });
   } catch (error) {
     console.error("Error fetching unread messages:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
-}
+};
+
 
 // Fetch message history between two users
 export const getMessageHistory = async (req, res) => {
