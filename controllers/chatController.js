@@ -1,13 +1,15 @@
 import Chat from '../models/chat.js';
 import User from '../models/user.js';
+import Notification from '../models/notification.js';
 import { maskPhoneNumber } from '../utils/maskPhone.js';
 import { getUsers } from '../services/socket.js';
 import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 // Send message and notify in real-time
 export const sendMessage = async (req, res) => {
   try {
+    // ** Get the logged-in user **
     const token = req.headers.authorization.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
@@ -17,25 +19,33 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ error: "Message and receiver ID are required" });
     }
 
-    // Check if receiver exists
+    // ** Check if receiver exists **
     const receiver = await User.findById(receiverId);
     if (!receiver) {
       return res.status(404).json({ error: "Receiver user not found" });
     }
 
-    // Mask phone numbers in the message
     const maskedMessage = maskPhoneNumber(message);
-
-    // Save message in the database
+    // ** Save the message in Chat model **
     const newMessage = new Chat({
       sender: new mongoose.Types.ObjectId(userId),
       receiver: new mongoose.Types.ObjectId(receiverId),
-      message: maskedMessage,
-      isRead: false, // Mark as unread initially
-      
+      message,
+      isRead: false, // Mark as unread
     });
 
     await newMessage.save();
+    // Mask phone numbers in the message
+    // ** Store a notification in the Notification model **
+    const newNotification = new Notification({
+      sender: userId,
+      receiver: receiverId,
+      message: "You have a new message",
+      type: "message",
+      read: false,
+    });
+
+    await newNotification.save();
 
     // 🔥 Emit message via Socket.io
     const users = getUsers(); // Get the map of connected users
@@ -44,10 +54,17 @@ export const sendMessage = async (req, res) => {
     if (receiverSocketId) {
       req.io.to(receiverSocketId).emit("receiveMessage", {
         senderId: userId,
-        message: maskedMessage,
+        message,
+      });
+
+      // 🚀 Emit notification if the user is online
+      req.io.to(receiverSocketId).emit("newNotification", {
+        type: "message",
+        message: "You have a new message",
+        senderId: userId,
       });
     } else {
-      // 🚀 If the user is offline, increment unread count
+      // 🚀 If the user is offline, update unread count
       await User.findByIdAndUpdate(receiverId, {
         $inc: { unreadMessages: 1 },
       });
@@ -60,6 +77,7 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ error: "Something went wrong while sending the message" });
   }
 };
+
 
 // Fetch chat history
 export const getChatHistory = async (req, res) => {

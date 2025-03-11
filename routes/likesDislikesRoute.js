@@ -1,7 +1,6 @@
 import express from 'express';
-import { likeUser, dislikeUser, getDislikedUsers, getLikedUsers } from '../controllers/likesDislikes.js';
+import { likeUser, dislikeUser  } from '../controllers/likesDislikes.js';
 import { protect } from '../middleware/authMiddleware.js'; // Middleware to authenticate users
-import { sendLikeNotification } from '../controllers/notificationController.js';
 
 const router = express.Router();
 
@@ -12,10 +11,6 @@ router.post('/likes/:profileId', protect, likeUser);
 router.post('/disliked/:profileId', protect, dislikeUser);
 
 // Route to get all liked 
-router.get('/liked', protect, getLikedUsers);
-
-// Route to get all disliked
-router.get('/disliked', protect, getDislikedUsers);
 
 // Route to send like notification
 router.post('/like', protect, async (req, res) => {

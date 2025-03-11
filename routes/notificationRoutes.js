@@ -1,13 +1,11 @@
 import express from 'express';
-import { sendLikeNotification, sendDislikeNotification, getNotifications } from '../controllers/notificationController.js';
+import { getUserNotifications, markAllNotificationsAsRead, clearUserNotifications} from '../controllers/notificationController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/send-like-notification/:likedId', protect, sendLikeNotification);
-
-router.post('/send-dislike-notification/:likedId', protect, sendDislikeNotification);
-
-router.get('/user-notifications', protect, getNotifications);
+router.get('/user-notifications', protect, getUserNotifications);
+router.put('/mark-all-read', protect, markAllNotificationsAsRead);
+router.delete('/clear-notifications', protect, clearUserNotifications);
 
 export default router;

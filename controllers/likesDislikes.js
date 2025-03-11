@@ -1,12 +1,12 @@
 import User from '../models/user.js';
 import { matchUsers } from './matchControllers.js';
-import { sendLikeNotification } from './notificationController.js'; // Import the notification controller
+import Notification from '../models/notification.js';
 import jwt from 'jsonwebtoken';
 import { getSocket, getUsers } from "../services/socket.js";
-import {extractUserIdFromToken} from '../utils/auth.js';
 // Like a User
 export const likeUser = async (req, res) => {
   try {
+    // ** Get logged-in user **
     const token = req.headers.authorization?.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const currentUserId = decoded.userId;
@@ -41,28 +41,39 @@ export const likeUser = async (req, res) => {
     if (!currentUser.likedUsers.includes(profileId)) {
       currentUser.likedUsers.push(profileId);
 
-      // Check if it's a match
+      // ** Check if it's a match **
       if (likedUser.likedUsers.includes(currentUserId)) {
         isMatch = true;
         currentUser.matches.push(profileId);
         likedUser.matches.push(currentUserId);
       }
 
-      // Emit real-time like notification **only if the user is online**
-          // **🔥 Emit a dislike notification to the disliked user only**
-    const io = getSocket();
-    const users = getUsers(); // Get online users
-    const receiverSocketId = users.get(profileId);
+      // ** Save a notification in the database **
+      const newNotification = new Notification({
+        sender: currentUserId,
+        receiver: profileId,
+        message: isMatch
+          ? `🔥 It's a match! You and ${currentUser.name} liked each other!`
+          : `❤️ ${currentUser.name} liked your profile!`,
+        type: "like",
+        read: false,
+      });
+
+      await newNotification.save();
+
+      // ** Emit real-time notification if the user is online **
+      const io = getSocket();
+      const users = getUsers(); // Get online users
+      const receiverSocketId = users.get(profileId);
+
       if (io && receiverSocketId) {
         io.to(receiverSocketId).emit("receiveNotification", {
           type: "like",
-          message: isMatch
-            ? `🔥 It's a match! You and ${currentUser.name} liked each other!`
-            : `❤️ ${currentUser.name} liked your profile!`,
+          message: newNotification.message,
         });
         console.log(`👍 Sent like notification to ${profileId}`);
       } else {
-        console.log(`⚠️ User ${profileId} is offline. No notification sent.`);
+        console.log(`⚠️ User ${profileId} is offline. Notification saved.`);
       }
     }
 
@@ -132,7 +143,9 @@ export const dislikeUser = async (req, res) => {
     }
 
     // Remove from likedUsers if present
-    currentUser.likedUsers = currentUser.likedUsers.filter(id => id.toString() !== profileId);
+    currentUser.likedUsers = currentUser.likedUsers.filter(
+      (id) => id.toString() !== profileId
+    );
 
     // Add to dislikedUsers if not already there
     if (!currentUser.dislikedUsers.includes(profileId)) {
@@ -141,7 +154,18 @@ export const dislikeUser = async (req, res) => {
 
     await currentUser.save();
 
-    // **🔥 Emit a dislike notification to the disliked user only**
+    // ** Save a notification in the database **
+    const newNotification = new Notification({
+      sender: currentUserId,
+      receiver: profileId,
+      message: "⚠️ Someone disliked your profile.",
+      type: "dislike",
+      read: false,
+    });
+
+    await newNotification.save();
+
+    // **🔥 Emit a real-time dislike notification if the user is online **
     const io = getSocket();
     const users = getUsers(); // Get online users
     const receiverSocketId = users.get(profileId);
@@ -149,11 +173,11 @@ export const dislikeUser = async (req, res) => {
     if (io && receiverSocketId) {
       io.to(receiverSocketId).emit("receiveNotification", {
         type: "dislike",
-        message: "Someone disliked your profile!",
+        message: newNotification.message,
       });
       console.log(`👎 Sent dislike notification to ${profileId}`);
     } else {
-      console.log(`⚠️ User ${profileId} is offline. No notification sent.`);
+      console.log(`⚠️ User ${profileId} is offline. Notification saved.`);
     }
 
     res.status(200).json({ message: "User disliked successfully." });
