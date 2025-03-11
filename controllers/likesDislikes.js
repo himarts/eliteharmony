@@ -163,6 +163,52 @@ export const dislikeUser = async (req, res) => {
   }
 };
 
+export const getLikeDislikeNotifications = async (req, res) => {
+  try {
+    // Get user ID from JWT token
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // Fetch latest likes where the logged-in user is the receiver
+    const likes = await Like.find({ likedUser: userId })
+      .populate("liker", "name") // Populate liker name
+      .sort({ createdAt: -1 }) // Sort by latest first
+      .limit(10); // Limit to last 10 likes
+
+    // Fetch latest dislikes where the logged-in user is the receiver
+    const dislikes = await Dislike.find({ dislikedUser: userId })
+      .populate("disliker", "name") // Populate disliker name
+      .sort({ createdAt: -1 }) // Sort by latest first
+      .limit(10); // Limit to last 10 dislikes
+
+    // Format the response
+    const likeNotifications = likes.map((like) => ({
+      type: "like",
+      userName: like.liker.name,
+      message: `${like.liker.name} liked your profile!`,
+      timestamp: like.createdAt,
+    }));
+
+    const dislikeNotifications = dislikes.map((dislike) => ({
+      type: "dislike",
+      userName: dislike.disliker.name,
+      message: `${dislike.disliker.name} disliked your profile.`,
+      timestamp: dislike.createdAt,
+    }));
+
+    // Combine and sort notifications by latest timestamp
+    const notifications = [...likeNotifications, ...dislikeNotifications].sort(
+      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+    );
+
+    res.status(200).json({ notifications });
+  } catch (error) {
+    console.error("❌ Error fetching like/dislike notifications:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 
 
 const calculateDistance = (location1, location2) => {
